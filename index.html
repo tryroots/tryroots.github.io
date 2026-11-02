@@ -32,9 +32,27 @@
   .free b { color:var(--green); }
   footer { margin-top:28px; font-size:12px; color:#6f6350; }
   footer a { color:#8f8168; }
+  /* On a phone's first visit only a "loading" screen shows while the store opens. */
+  .opening { display:none; position:fixed; inset:0; z-index:2; background:var(--bg); flex-direction:column; align-items:center; justify-content:center; gap:22px; }
+  .opening p { color:var(--muted); font-size:16px; }
+  .spin { width:26px; height:26px; border-radius:50%; border:3px solid #3a3020; border-top-color:var(--green); animation:spin .8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  html.jump .opening { display:flex; }
+  html.jump main, html.jump .bg { visibility:hidden; }
 </style>
+<script>
+  // Decided before anything is drawn, so the full page never flashes first.
+  (function () {
+    var ua = navigator.userAgent || "";
+    var phone = /Android|iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    var seen = false;
+    try { seen = sessionStorage.getItem("roots-opened") === "1"; } catch (e) {}
+    if (phone && !seen && !/[?&]stay\b/.test(location.search)) document.documentElement.className = "jump";
+  })();
+</script>
 </head>
 <body>
+<div class="opening"><img class="icon" src="icon.png" alt="" /><div class="spin"></div><p id="opening-text">Opening the store…</p></div>
 <div class="bg"></div>
 <main>
   <img class="icon" src="icon.png" alt="Roots app icon" />
@@ -91,9 +109,17 @@
   if (isiOS && inApp) ios.addEventListener("click", function (e) { e.preventDefault(); openStore(); });
 
   // Once per visit: someone who comes back from the store gets the page, not another jump.
-  var seen = false;
-  try { seen = sessionStorage.getItem("roots-opened") === "1"; sessionStorage.setItem("roots-opened", "1"); } catch (e) {}
-  if ((isAndroid || isiOS) && !seen && !params.has("stay")) setTimeout(openStore, 250);
+  try { sessionStorage.setItem("roots-opened", "1"); } catch (e) {}
+  var root = document.documentElement;
+  function showPage() { root.className = ""; }
+  if (root.className === "jump") {
+    document.getElementById("opening-text").textContent = isAndroid ? "Opening Google Play…" : "Opening the App Store…";
+    openStore();
+    // Back from the store, or the store never opened (a browser that blocks it): the full page with its buttons.
+    document.addEventListener("visibilitychange", function () { if (!document.hidden) showPage(); });
+    window.addEventListener("pageshow", function (e) { if (e.persisted) showPage(); });
+    setTimeout(function () { if (!document.hidden) showPage(); }, 2500);
+  }
 </script>
 </body>
 </html>
