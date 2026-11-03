@@ -85,13 +85,16 @@
 
   // One link for every phone: open the visitor's store app straight away,
   // with this page left behind it. ?src=tiktok (or any name) reaches Play's
-  // acquisition report as utm_source; ?stay keeps the page (for testing).
+  // acquisition report as utm_source and App Store Connect as campaign ct; ?stay keeps the page (for testing).
   var params = new URLSearchParams(location.search);
   var src = (params.get("src") || params.get("utm_source") || "web").replace(/[^\w-]/g, "").slice(0, 40);
   var PKG = "com.fineasbn.roots", APPLE_ID = "6808912952";
   var play = "https://play.google.com/store/apps/details?id=" + PKG +
              "&referrer=" + encodeURIComponent("utm_source=" + src + "&utm_medium=link");
   an.href = play;
+  // App Store Connect campaign link: installs show per ?src= under Analytics > Sources > Campaigns.
+  var appleQ = "?pt=129407612&ct=" + encodeURIComponent(src) + "&mt=8";
+  ios.href = "https://apps.apple.com/app/apple-store/id" + APPLE_ID + appleQ;
   // TikTok, Instagram, Facebook and Snapchat open links in their own browser,
   // which shows the web store page instead of the store app unless asked directly.
   var inApp = /musical_ly|BytedanceWebview|TikTok|Instagram|FBAN|FBAV|Snapchat/i.test(ua);
@@ -102,7 +105,7 @@
       location.href = "intent://details?id=" + PKG + "&referrer=" + encodeURIComponent("utm_source=" + src + "&utm_medium=link") +
         "#Intent;scheme=market;package=com.android.vending;S.browser_fallback_url=" + encodeURIComponent(play) + ";end";
     } else if (isiOS) {
-      location.href = (inApp ? "itms-apps://apps.apple.com/app/id" : "https://apps.apple.com/app/id") + APPLE_ID;
+      location.href = (inApp ? "itms-apps://apps.apple.com/app/apple-store/id" : "https://apps.apple.com/app/apple-store/id") + APPLE_ID + appleQ;
     }
   }
   if (isAndroid) an.addEventListener("click", function (e) { e.preventDefault(); openStore(); });
