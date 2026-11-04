@@ -39,6 +39,11 @@
   @keyframes spin { to { transform:rotate(360deg); } }
   html.jump .opening { display:flex; }
   html.jump main, html.jump .bg { visibility:hidden; }
+  html.tap #android, html.tap .lead { display:none; }
+  html.tap #ios { padding:20px 22px; justify-content:center; }
+  html.tap #ios .b { font-size:24px; }
+  .taphint { display:none; margin-top:12px; color:var(--muted); font-size:14px; }
+  html.tap .taphint { display:block; }
 </style>
 <script>
   // Decided before anything is drawn, so the full page never flashes first.
@@ -47,7 +52,11 @@
     var phone = /Android|iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
     var seen = false;
     try { seen = sessionStorage.getItem("roots-opened") === "1"; } catch (e) {}
-    if (phone && !seen && !/[?&]stay\b/.test(location.search)) document.documentElement.className = "jump";
+    // TikTok's browser on iPhone never lets a page open the App Store by itself,
+    // only on a tap, so there the page goes straight to one big App Store button.
+    var iosTikTok = /iPhone|iPad|iPod/i.test(ua) && /musical_ly|BytedanceWebview|TikTok/i.test(ua);
+    if (iosTikTok) document.documentElement.className = "tap";
+    else if (phone && !seen && !/[?&]stay\b/.test(location.search)) document.documentElement.className = "jump";
   })();
 </script>
 </head>
@@ -71,6 +80,7 @@
     </a>
   </div>
 
+  <div class="taphint">Tap the button to open the App Store</div>
   <div class="free"><b>Free</b> to start · no card required</div>
   <footer><a href="https://fineasbene.github.io/roots-legal/privacy-policy.html">Privacy</a> · <a href="https://fineasbene.github.io/roots-legal/terms.html">Terms</a></footer>
 </main>
@@ -127,13 +137,22 @@
   ios.addEventListener("click", function () { track("landing_button", { store: "ios" }); });
   an.addEventListener("click", function () { track("landing_button", { store: "android" }); });
   if (isAndroid) an.addEventListener("click", function (e) { e.preventDefault(); openStore(); });
-  if (isiOS && inApp) ios.addEventListener("click", function (e) { e.preventDefault(); openStore(); });
+  if (isiOS && inApp) ios.addEventListener("click", function (e) {
+    e.preventDefault(); openStore();
+    // If the app browser refuses even on a tap, its own App Store web page is the next best thing.
+    setTimeout(function () { if (!document.hidden) location.href = "https://apps.apple.com/app/apple-store/id" + APPLE_ID + appleQ; }, 1500);
+  });
 
   // Once per visit: someone who comes back from the store gets the page, not another jump.
   try { sessionStorage.setItem("roots-opened", "1"); } catch (e) {}
   var root = document.documentElement;
   function showPage() { root.className = ""; }
-  track("landing_view", { auto: root.className === "jump" });
+  track("landing_view", { auto: root.className === "jump", tap_only: root.className === "tap" });
+  // On the tap-only page, the App Store taking over is the same "store opened".
+  if (root.className === "tap") {
+    var gone = false;
+    document.addEventListener("visibilitychange", function () { if (document.hidden && !gone) { gone = true; track("landing_store_opened", { via: "tap" }); } });
+  }
   if (root.className === "jump") {
     // The page going to the background means the store app took over.
     var left = false;
