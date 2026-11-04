@@ -99,6 +99,22 @@
   // which shows the web store page instead of the store app unless asked directly.
   var inApp = /musical_ly|BytedanceWebview|TikTok|Instagram|FBAN|FBAV|Snapchat/i.test(ua);
 
+  // Anonymous page funnel in the app's PostHog (EU): arrived, store opened,
+  // store blocked, button tapped. A random id per visit, nothing about the person.
+  var vid = "web-" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  var os = isAndroid ? "android" : isiOS ? "ios" : "desktop";
+  var browser = /musical_ly|BytedanceWebview|TikTok/i.test(ua) ? "tiktok" : /Instagram/i.test(ua) ? "instagram" :
+                /FBAN|FBAV/i.test(ua) ? "facebook" : /Snapchat/i.test(ua) ? "snapchat" : "browser";
+  function track(event, extra) {
+    var props = { src: src, os: os, browser: browser, $current_url: location.href };
+    for (var k in extra || {}) props[k] = extra[k];
+    var body = JSON.stringify({ api_key: "phc_BVU4MYK2sDFCTsyh7SNQWvnqr5ScGSyUaB5fofZYBEEC", event: event, distinct_id: vid, properties: props });
+    try {
+      if (!(navigator.sendBeacon && navigator.sendBeacon("https://eu.i.posthog.com/capture/", new Blob([body], { type: "text/plain" }))))
+        fetch("https://eu.i.posthog.com/capture/", { method: "POST", body: body, keepalive: true });
+    } catch (e) {}
+  }
+
   function openStore() {
     if (isAndroid) {
       // The Play Store app itself; a phone without it falls back to the web page.
@@ -108,6 +124,8 @@
       location.href = (inApp ? "itms-apps://apps.apple.com/app/apple-store/id" : "https://apps.apple.com/app/apple-store/id") + APPLE_ID + appleQ;
     }
   }
+  ios.addEventListener("click", function () { track("landing_button", { store: "ios" }); });
+  an.addEventListener("click", function () { track("landing_button", { store: "android" }); });
   if (isAndroid) an.addEventListener("click", function (e) { e.preventDefault(); openStore(); });
   if (isiOS && inApp) ios.addEventListener("click", function (e) { e.preventDefault(); openStore(); });
 
@@ -115,7 +133,12 @@
   try { sessionStorage.setItem("roots-opened", "1"); } catch (e) {}
   var root = document.documentElement;
   function showPage() { root.className = ""; }
+  track("landing_view", { auto: root.className === "jump" });
   if (root.className === "jump") {
+    // The page going to the background means the store app took over.
+    var left = false;
+    document.addEventListener("visibilitychange", function () { if (document.hidden && !left) { left = true; track("landing_store_opened"); } });
+    setTimeout(function () { if (!left) track("landing_store_blocked"); }, 2500);
     document.getElementById("opening-text").textContent = isAndroid ? "Opening Google Play…" : "Opening the App Store…";
     openStore();
     // Back from the store, or the store never opened (a browser that blocks it): the full page with its buttons.
